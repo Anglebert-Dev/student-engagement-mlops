@@ -28,7 +28,7 @@ The project covers the full pipeline: data acquisition, preprocessing, model tra
 
 The notebook compares 4 MobileNetV2 transfer learning experiments (frozen baseline, augmentation with dropout and L2, fine-tuning with Adam, fine-tuning with SGD), with early stopping and learning-rate reduction. The model and decision threshold were chosen on the validation set. The test set was used once.
 
-| Metric (test set, 1,669 images) | Version 1 (notebook) | Version 2 (after retraining on 604 new images) |
+| Metric (test set, 1,669 images) | Version 1 (notebook) | Notebook retraining demo (604 new images) |
 |---|---|---|
 | Accuracy | 0.648 | 0.654 |
 | Precision | 0.660 | 0.661 |
@@ -37,7 +37,7 @@ The notebook compares 4 MobileNetV2 transfer learning experiments (frozen baseli
 | ROC-AUC | 0.692 | 0.727 |
 | Loss | 0.695 | 0.710 |
 
-The repository ships **version 1** (9 MB). Version 2 was produced by the retraining demo in the notebook and is kept on Google Drive; on the server, each retraining run creates a new version and keeps the previous one as a backup.
+The table compares the notebook's two models on the 1,669-image test set. The repository ships the model currently running on the server: **version 2 from the server**, retrained on 200 uploaded images (a different model from the notebook's retraining demo in the table). Its metrics were measured on the 20 held-out images in `data/test` (accuracy 0.70, F1 0.75); with only 20 images these numbers are rough and cannot be compared directly with the table. Version 1 from the notebook is kept as `engagement_mobilenetv2_v1.h5`. Each retraining run creates a new version and keeps the previous one as a backup.
 
 The majority-class baseline scores 0.493 accuracy. The model clearly learns a signal but overfits (training accuracy above 0.96), so its accuracy on unseen learners is moderate. The notebook discusses this in detail, together with errors by age group and gender.
 
@@ -76,15 +76,17 @@ student-engagement-mlops/
 │   ├── model.py           MobileNetV2 model, experiments, metrics, retraining from the saved model
 │   ├── prediction.py      loads the saved model and predicts one or many images
 │   ├── database.py        SQLite: uploaded images, prediction log, retraining runs
-│   └── retraining.py      database uploads -> preprocessing -> retrain -> evaluate -> promote
+│   ├── retraining.py      database uploads -> preprocessing -> retrain -> evaluate -> promote
+│   └── explain.py         Grad-CAM heatmap for one image
 ├── app/
 │   ├── main.py            web API (Starlette + Uvicorn)
-│   └── static/index.html  dashboard: uptime, prediction, data insights, upload and retrain
+│   └── static/            dashboard (index.html, css/, js/): status, prediction with heatmap, insights, upload, retraining, evaluation, error logs
 ├── data/
 │   ├── train/             sample upload batch for the retraining demo (40 per class)
 │   └── test/              held-out labelled images (10 per class) for prediction and evaluation
 ├── models/
-│   ├── engagement_mobilenetv2.h5        model in production (version 1, from the notebook)
+│   ├── engagement_mobilenetv2.h5        model in production (version 2, retrained on the server)
+│   ├── engagement_mobilenetv2_v1.h5     version 1 from the notebook, kept as backup
 │   └── model_metadata.json              version, threshold, class names, metrics
 ├── outputs/               dataset_summary.json (dashboard charts), experiments.csv
 ├── scripts/build_dataset_summary.py
@@ -104,6 +106,7 @@ student-engagement-mlops/
 | GET | `/api/model` | Metadata of the model in production |
 | GET | `/api/insights` | Dataset summary and experiment results for the charts |
 | POST | `/api/predict` | Form field `file`: one image. Returns the class, the probability of engagement and the response time |
+| POST | `/api/explain` | Form field `file`: one image. Returns the prediction and a Grad-CAM heatmap showing which areas of the image the decision was based on |
 | POST | `/api/upload` | Form fields `label` (`Engagement` or `Disengagement`) and `files` (many images). Preprocesses and saves them to the database |
 | POST | `/api/retrain` | Starts retraining on the images waiting in the database |
 | GET | `/api/retrain/status` | Latest retraining run |
