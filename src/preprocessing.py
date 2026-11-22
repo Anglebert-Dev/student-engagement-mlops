@@ -144,14 +144,56 @@ def image_statistics(path: str | Path) -> dict:
 
 
 # ---------------------------------------------------------------- model input
+_EXIF_ORIENTATION = 0x0112
+_ORIENT = {
+    2: lambda a: a[:, ::-1],
+    3: lambda a: a[::-1, ::-1],
+    4: lambda a: a[::-1],
+    5: lambda a: a.transpose(1, 0, 2),
+    6: lambda a: np.rot90(a, k=-1),
+    7: lambda a: a[::-1, ::-1].transpose(1, 0, 2),
+    8: lambda a: np.rot90(a, k=1),
+}
+
+
+def _read_bytes(source) -> bytes:
+    if isinstance(source, (bytes, bytearray)):
+        return bytes(source)
+    if isinstance(source, (str, Path)):
+        return Path(source).read_bytes()
+    return source.read()
+
+
+def _exif_orientation(raw: bytes) -> int:
+    try:
+        return int(Image.open(io.BytesIO(raw)).getexif().get(_EXIF_ORIENTATION, 1))
+    except Exception:
+        return 1
+
+
+def decode_image(raw: bytes) -> np.ndarray:
+    import tensorflow as tf
+    try:
+        image = tf.io.decode_image(raw, channels=3, expand_animations=False).numpy()
+    except (tf.errors.InvalidArgumentError, ValueError):
+        from PIL import ImageOps, UnidentifiedImageError
+        try:
+            pil = Image.open(io.BytesIO(raw))
+            pil.load()
+        except (UnidentifiedImageError, OSError) as exc:
+            raise ValueError("not a readable image") from exc
+        return np.asarray(ImageOps.exif_transpose(pil).convert("RGB"))
+    orient = _ORIENT.get(_exif_orientation(raw))
+    return np.ascontiguousarray(orient(image)) if orient else image
+
+
 def load_image_array(source, img_size: int = IMG_SIZE) -> np.ndarray:
     """Read an image from a path, bytes or file object and return a float32 array
-    of shape (img_size, img_size, 3) with values 0 to 255. Scaling to the
-    MobileNetV2 range is done inside the model, so training and serving match."""
-    if isinstance(source, (bytes, bytearray)):
-        source = io.BytesIO(source)
-    image = Image.open(source).convert("RGB").resize((img_size, img_size), Image.BILINEAR)
-    return np.asarray(image, dtype=np.float32)
+    of shape (img_size, img_size, 3) with values 0 to 255. Decoding and resizing use
+    the same TensorFlow functions as training, so the model sees identical pixels."""
+    import tensorflow as tf
+    image = decode_image(_read_bytes(source))
+    return tf.image.resize(image, (img_size, img_size)).numpy()
 
 
 STORED_SIZE = 256   # same size as the original dataset images

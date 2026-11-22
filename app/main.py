@@ -4,11 +4,13 @@ Run locally:  uvicorn app.main:app --host 0.0.0.0 --port 8000   (from the projec
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import socket
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +33,12 @@ STARTED_AT = time.time()
 RETRAIN_THRESHOLD = int(os.environ.get("RETRAIN_THRESHOLD", "200"))
 MAX_UPLOAD_FILES = int(os.environ.get("MAX_UPLOAD_FILES", "500"))
 MAX_FILE_BYTES = 15 * 1024 * 1024
+MODEL_EXECUTOR = ThreadPoolExecutor(max_workers=int(os.environ.get("PREDICT_CONCURRENCY", "1")),
+                                    thread_name_prefix="model")
+
+
+async def run_model(fn, *args):
+    return await asyncio.get_running_loop().run_in_executor(MODEL_EXECUTOR, fn, *args)
 
 state = {"predictor": None, "model_error": None, "requests": 0, "predictions": 0, "latency_total_ms": 0.0}
 
@@ -116,13 +124,13 @@ async def predict(request: Request):
     if upload is None or not hasattr(upload, "read"):
         return error("send one image in the form field 'file'", 400)
     raw = await upload.read()
-    predictor = await run_in_threadpool(get_predictor)
+    predictor = await run_model(get_predictor)
     if predictor is None:
         return error(state["model_error"] or "model not loaded", 503)
 
     start = time.perf_counter()
     try:
-        result = await run_in_threadpool(predictor.predict, raw)
+        result = await run_model(predictor.predict, raw)
     except Exception:
         return error("could not read this file as an image", 400)
     latency_ms = (time.perf_counter() - start) * 1000
@@ -212,7 +220,7 @@ async def evaluate(request: Request):
     from src.model import classification_metrics
     import numpy as np
 
-    predictor = await run_in_threadpool(get_predictor)
+    predictor = await run_model(get_predictor)
     if predictor is None:
         return error(state["model_error"] or "model not loaded", 503)
     files = [p for p in sorted(Path("data/test").glob("*/*")) if p.parent.name in CLASS_NAMES]
@@ -222,7 +230,7 @@ async def evaluate(request: Request):
     start = time.perf_counter()
     results = []
     for i in range(0, len(files), 32):
-        results += await run_in_threadpool(predictor.predict_batch, files[i:i + 32])
+        results += await run_model(predictor.predict_batch, files[i:i + 32])
     y_true = np.array([CLASS_NAMES.index(p.parent.name) for p in files])
     proba = np.array([r["probability_engaged"] for r in results])
     metrics = classification_metrics(y_true, proba, predictor.threshold)

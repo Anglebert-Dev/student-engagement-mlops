@@ -31,7 +31,7 @@ for n in $CONTAINER_COUNTS; do
   docker run --rm --user root --network host -v "$PWD":/mnt/project -w /mnt/project locustio/locust \
     -f locust/locustfile.py --headless --host "$HOST" \
     -u "$USERS" -r "$SPAWN_RATE" -t "$DURATION" --only-summary \
-    --csv "results/containers_${n}"
+    --csv "results/containers_${n}" || true
   echo "${n} ${seen}" >> results/containers_seen.txt
 done
 
