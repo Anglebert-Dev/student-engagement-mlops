@@ -143,6 +143,28 @@ async def predict(request: Request):
                          "container": CONTAINER})
 
 
+async def explain(request: Request):
+    from src.explain import explain as explain_image
+    form = await request.form(max_files=1, max_part_size=MAX_FILE_BYTES)
+    upload = form.get("file")
+    if upload is None or not hasattr(upload, "read"):
+        return error("send one image in the form field 'file'", 400)
+    raw = await upload.read()
+    predictor = await run_model(get_predictor)
+    if predictor is None:
+        return error(state["model_error"] or "model not loaded", 503)
+
+    start = time.perf_counter()
+    try:
+        result = await run_model(explain_image, predictor, raw)
+    except ValueError:
+        return error("could not read this file as an image", 400)
+    except Exception as exc:
+        return error(f"could not compute the heatmap: {type(exc).__name__}: {exc}", 500)
+    return JSONResponse({**result, "filename": upload.filename, "container": CONTAINER,
+                         "latency_ms": round((time.perf_counter() - start) * 1000, 1)})
+
+
 # ---------------------------------------------------------------- upload and retraining
 def start_retraining(trigger: str) -> tuple[int | None, str | None]:
     reason = retraining.check_ready()
@@ -271,6 +293,7 @@ routes = [
     Route("/api/insights", insights),
     Route("/api/stats", stats),
     Route("/api/predict", predict, methods=["POST"]),
+    Route("/api/explain", explain, methods=["POST"]),
     Route("/api/upload", upload, methods=["POST"]),
     Route("/api/retrain", retrain, methods=["POST"]),
     Route("/api/retrain/status", retrain_status),

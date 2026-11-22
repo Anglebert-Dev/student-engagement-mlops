@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Video demo** | [add YouTube link] |
+| **Video demo** | [] |
 | **Live app** | http://194.163.187.137:8095 |
 | **Notebook** | [`notebook/student_engagement_mlops.ipynb`](notebook/student_engagement_mlops.ipynb) |
 
@@ -43,13 +43,27 @@ The majority-class baseline scores 0.493 accuracy. The model clearly learns a si
 
 ## Flood request simulation (Locust)
 
-Each simulated user sends a test image to `/api/predict` every 0.5 to 1.5 s, and sometimes calls `/api/health`. The same test runs against 1, 2 and 4 API containers behind nginx. Each container is limited to one CPU.
+Each simulated user sends one of the labelled test images to `/api/predict`, waits 0.5 to 1.5 s and repeats, and now and then calls `/api/health`. The same test ran against 1, 2 and 4 API containers behind nginx, with each container limited to one CPU and 2 GB of memory.
 
-Settings: [add users], spawn rate [add], duration [add], server: 6 vCPU, 11 GB RAM, Ubuntu 24.04.
+**Settings:** 50 users, spawn rate 10 users per second, 2 minutes per run. **Server:** 6 vCPU, 11 GB RAM, Ubuntu 24.04. Locust ran on the same server.
 
-[paste results/summary.md here after running `bash locust/run_load_tests.sh`]
+Results for `/api/predict` (from `results/summary.md`):
 
-**Interpretation:** [add after the test: how average and 95th percentile response time and requests per second change from 1 to 2 to 4 containers]
+| Containers | Requests | Failures | Average (ms) | Median (ms) | 95th percentile (ms) | 99th percentile (ms) | Max (ms) | Requests per second |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 435 | 0.0% | 11611 | 12000 | 14000 | 15000 | 14895 | 3.6 |
+| 2 | 835 | 0.0% | 5449 | 5200 | 11000 | 12000 | 12496 | 7.0 |
+| 4 | 1743 | 0.0% | 2124 | 1800 | 4500 | 5200 | 5621 | 14.7 |
+
+Locust rounds percentiles to two significant figures, which is why the 99th percentile for 1 container (15,000 ms) is above the exact maximum (14,895 ms).
+
+**Interpretation**
+- **Capacity grows with containers.** One container handles about 3.6 predictions per second. Throughput roughly doubles each time the number of containers doubles: 3.6, then 7.0, then 14.7 per second.
+- **Waiting time falls.** The median response time drops from 12.0 s with 1 container to 5.2 s with 2 and 1.8 s with 4. The 95th percentile drops from 14.0 s to 4.5 s.
+- **No failures.** Every request was answered in all three runs. When the containers are busy, requests wait in line instead of being rejected, which is why response times are long with 1 container: 50 users ask for far more than 3.6 predictions per second.
+- **Load is shared.** In each run, health checks through nginx were answered by every running container (1, 2 and then 4 different containers).
+
+**What the first test showed.** In the first run, almost every request (2,372 of 2,381) failed with a 502 error. Starlette ran predictions on its pool of about 40 threads, and TensorFlow keeps memory for each thread that runs the model, so the container went past its 2 GB limit: the kernel's out-of-memory killer stopped it and Docker restarted it, 7 times during the run. In a test container with a higher limit, the same load used 2.55 GB. All model calls now run on a single dedicated thread per container, which keeps memory near 400 MB under load (662 MB at peak during a 50-user test). With one CPU per container, running predictions in parallel inside a container would not be faster anyway.
 
 ## Repository structure
 

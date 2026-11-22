@@ -92,8 +92,10 @@ export function metricChips(m, before) {
   return `<div class="metrics">${METRICS.map(([k, label]) => {
     let delta = "";
     if (before && before[k] != null && m[k] != null) {
-      const d = m[k] - before[k], good = k === "loss" ? d < 0 : d > 0;
-      delta = `<div class="delta ${good ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(3)}</div>`;
+      const d = Number((m[k] - before[k]).toFixed(3));
+      const better = k === "loss" ? d < 0 : d > 0;
+      const cls = d === 0 ? "flat" : better ? "up" : "down";
+      delta = `<div class="delta ${cls}">${d > 0 ? "+" : ""}${d === 0 ? "0.000" : d.toFixed(3)}</div>`;
     }
     return `<div class="metric"><div class="k">${label}</div><div class="v">${fix(m[k])}</div>${delta}</div>`;
   }).join("")}</div>`;
