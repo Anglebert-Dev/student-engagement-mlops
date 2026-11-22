@@ -1,0 +1,31 @@
+# Start:       docker compose up -d --build
+# Scale API:   docker compose up -d --scale api=4
+# Dashboard:   http://<server-ip>:8095
+services:
+  api:
+    build: .
+    image: engagement-api:latest
+    environment:
+      DB_PATH: /app/storage/engagement.db
+      RETRAIN_THRESHOLD: ${RETRAIN_THRESHOLD:-200}
+      MIN_NEW_PER_CLASS: ${MIN_NEW_PER_CLASS:-5}
+      # One CPU per container, so adding containers adds real capacity in the load test
+      TF_NUM_INTRAOP_THREADS: 1
+      TF_NUM_INTEROP_THREADS: 1
+      OMP_NUM_THREADS: 1
+    cpus: ${API_CPUS:-1.0}
+    mem_limit: 2g
+    volumes:
+      - ./models:/app/models
+      - ./storage:/app/storage
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${APP_PORT:-8095}:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped

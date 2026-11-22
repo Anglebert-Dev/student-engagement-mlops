@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "class_names": [
+    "Disengagement",
+    "Engagement"
+  ],
+  "positive_class": "Engagement",
+  "img_size": 224,
+  "threshold": 0.48,
+  "metrics": {
+    "accuracy": 0.6482923906530856,
+    "precision": 0.6596794081381011,
+    "recall": 0.6323877068557919,
+    "f1": 0.6457453228726614,
+    "roc_auc": 0.6917435778116733,
+    "loss": 0.69508892295929,
+    "tn": 547.0,
+    "fp": 276.0,
+    "fn": 311.0,
+    "tp": 535.0
+  },
+  "trained_at": "2026-11-22T14:32:29+00:00",
+  "experiment": "E1_frozen_baseline"
+}
