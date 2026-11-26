@@ -1,4 +1,3 @@
-"""Turn Locust CSV output (results/containers_<n>_stats.csv) into a Markdown table."""
 import csv
 import sys
 from pathlib import Path

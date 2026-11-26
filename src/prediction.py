@@ -1,4 +1,3 @@
-"""Load the production model and predict engagement for one or more images."""
 from __future__ import annotations
 
 import json
@@ -34,8 +33,7 @@ class EngagementPredictor:
         return int(self.metadata.get("version", 1))
 
     def reload_if_changed(self) -> bool:
-        """Reload when retraining (possibly in another container) has saved a new version.
-        The metadata file is written last, so its change means the model file is ready."""
+        """Metadata is written last, so a changed file means the new model is complete."""
         if self.metadata_path.stat().st_mtime == self._loaded_mtime:
             return False
         with self._lock:
@@ -45,7 +43,6 @@ class EngagementPredictor:
         return False
 
     def predict(self, source) -> dict:
-        """source: file path, raw bytes or file object of one image."""
         return self.predict_batch([source])[0]
 
     def predict_batch(self, sources, chunk_size: int = MAX_CHUNK) -> list[dict]:

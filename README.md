@@ -37,9 +37,9 @@ The notebook compares 4 MobileNetV2 transfer learning experiments (frozen baseli
 | ROC-AUC | 0.692 | 0.727 |
 | Loss | 0.695 | 0.710 |
 
-The table compares the notebook's two models on the 1,669-image test set. The repository ships the model currently running on the server: **version 2 from the server**, retrained on 200 uploaded images (a different model from the notebook's retraining demo in the table). Its metrics were measured on the 20 held-out images in `data/test` (accuracy 0.70, F1 0.75); with only 20 images these numbers are rough and cannot be compared directly with the table. Version 1 from the notebook is kept as `engagement_mobilenetv2_v1.h5`. Each retraining run creates a new version and keeps the previous one as a backup.
+The repository ships the model running on the server: version 2, retrained on the server on 200 uploaded images. It is a different model from the notebook's retraining demo in the table. On the 20 held-out images in `data/test` it scores 0.70 accuracy and 0.75 F1, which is too few images to compare with the table. Version 1 from the notebook is kept as `engagement_mobilenetv2_v1.h5`. Each retraining run creates a new version and keeps the previous one as a backup.
 
-The majority-class baseline scores 0.493 accuracy. The model clearly learns a signal but overfits (training accuracy above 0.96), so its accuracy on unseen learners is moderate. The notebook discusses this in detail, together with errors by age group and gender.
+The majority-class baseline scores 0.493 accuracy. The model learns a signal but overfits (training accuracy above 0.96), so its accuracy on unseen learners is moderate. The notebook discusses this in detail, together with errors by age group and gender.
 
 ## Flood request simulation (Locust)
 
@@ -57,13 +57,13 @@ Results for `/api/predict` (from `results/summary.md`):
 
 Locust rounds percentiles to two significant figures, which is why the 99th percentile for 1 container (15,000 ms) is above the exact maximum (14,895 ms).
 
-**Interpretation**
-- **Capacity grows with containers.** One container handles about 3.6 predictions per second. Throughput roughly doubles each time the number of containers doubles: 3.6, then 7.0, then 14.7 per second.
-- **Waiting time falls.** The median response time drops from 12.0 s with 1 container to 5.2 s with 2 and 1.8 s with 4. The 95th percentile drops from 14.0 s to 4.5 s.
-- **No failures.** Every request was answered in all three runs. When the containers are busy, requests wait in line instead of being rejected, which is why response times are long with 1 container: 50 users ask for far more than 3.6 predictions per second.
-- **Load is shared.** In each run, health checks through nginx were answered by every running container (1, 2 and then 4 different containers).
+Interpretation:
+- One container handles about 3.6 predictions per second, and throughput roughly doubles with each doubling of containers: 3.6, 7.0, then 14.7 per second.
+- The median response time drops from 12.0 s with 1 container to 5.2 s with 2 and 1.8 s with 4. The 95th percentile drops from 14.0 s to 4.5 s.
+- No request failed. Busy containers queue requests instead of rejecting them, which is why 1 container is slow: 50 users ask for far more than 3.6 predictions per second.
+- Health checks through nginx were answered by every running container in each run, so the load was shared.
 
-**What the first test showed.** In the first run, almost every request (2,372 of 2,381) failed with a 502 error. Starlette ran predictions on its pool of about 40 threads, and TensorFlow keeps memory for each thread that runs the model, so the container went past its 2 GB limit: the kernel's out-of-memory killer stopped it and Docker restarted it, 7 times during the run. In a test container with a higher limit, the same load used 2.55 GB. All model calls now run on a single dedicated thread per container, which keeps memory near 400 MB under load (662 MB at peak during a 50-user test). With one CPU per container, running predictions in parallel inside a container would not be faster anyway.
+The first run failed: 2,372 of 2,381 requests got a 502 error. Predictions ran on Starlette's pool of about 40 threads, and TensorFlow keeps memory for every thread that runs the model, so the container passed its 2 GB limit and was killed and restarted 7 times. All model calls now run on one dedicated thread per container, which keeps memory under 700 MB with 50 users.
 
 ## Repository structure
 
@@ -123,7 +123,7 @@ curl -F "file=@data/test/Engagement/ENG_22_ABOVE_BOY_651.jpg" http://194.163.187
 1. **Upload:** the user selects a class and many images on the dashboard.
 2. **Preprocessing and saving:** each image is checked as readable, its EXIF orientation is fixed, images under 64 px are rejected, then it is converted to RGB, resized to 256 × 256 (the dataset format) and stored as a JPEG in the SQLite database. Duplicates are skipped by hash.
 3. **Trigger:** the **Retrain now** button, or automatically once 200 or more images are waiting (`RETRAIN_THRESHOLD`). At least 5 new images per class are required.
-4. **Retraining:** the saved production model is loaded as the starting point. Its last 30 MobileNetV2 layers are fine-tuned at a learning rate of 0.00001 for up to 5 epochs, on the new images plus all images from earlier runs.
+4. **Retraining:** the saved production model is loaded as the starting point. Its last 30 MobileNetV2 layers are fine-tuned at a learning rate of 0.00001 for up to 5 epochs, on the new images plus up to 1,000 images from earlier runs.
 5. **Evaluation and promotion:** the old and new model are scored on the held-out images in `data/test`. The new model replaces the old one unless its F1 drops by more than 0.05, and the old file is kept as a backup. Every API container reloads the new version automatically.
 
 ## How to set it up
@@ -134,7 +134,7 @@ curl -F "file=@data/test/Engagement/ENG_22_ABOVE_BOY_651.jpg" http://194.163.187
 3. Open `notebook/student_engagement_mlops.ipynb` in Colab, choose a T4 GPU, and run all cells. Finished experiments are saved to Drive and skipped on the next run.
 
 ### 2. Run the app on a server with Docker
-Requires Docker with the Compose plugin and about 1 GB of RAM per API container.
+Requires Docker with the Compose plugin and up to 2 GB of RAM per API container (about 400 MB when idle).
 ```bash
 git clone https://github.com/Anglebert-Dev/student-engagement-mlops.git
 cd student-engagement-mlops

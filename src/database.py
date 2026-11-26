@@ -1,8 +1,3 @@
-"""SQLite storage for uploaded training images, prediction logs and retraining runs.
-
-One database file is shared by every API container through a Docker volume.
-WAL mode lets several containers read while one writes.
-"""
 from __future__ import annotations
 
 import json
@@ -78,10 +73,8 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
 
 
-# ---------------------------------------------------------------- uploads
 def save_upload(filename: str, label: str, label_id: int, md5: str, image: bytes,
                 width: int, height: int) -> bool:
-    """Store one preprocessed image. Returns False if the same image is already stored."""
     with connect() as conn:
         cur = conn.execute(
             "INSERT OR IGNORE INTO uploads (filename, label, label_id, md5, original_width, "
@@ -113,7 +106,6 @@ def mark_uploads_used(ids: list[int], run_id: int) -> None:
         conn.executemany("UPDATE uploads SET used_in_run = ? WHERE id = ?", [(run_id, i) for i in ids])
 
 
-# ---------------------------------------------------------------- predictions
 def log_prediction(filename: str, label: str, probability: float, latency_ms: float,
                    model_version: int, container: str) -> None:
     with connect() as conn:
@@ -131,10 +123,8 @@ def prediction_summary(limit: int = 10) -> dict:
             "recent": [dict(r) for r in recent]}
 
 
-# ---------------------------------------------------------------- retraining runs
 def start_run(trigger_type: str, container: str) -> int | None:
-    """Create a 'running' row unless another run is already active (in any container).
-    Runs stuck for over an hour (for example after a container crash) are marked failed."""
+    """Returns None if a run is already active. Runs stuck for over an hour are marked failed first."""
     stale_before = (datetime.now(timezone.utc) - timedelta(minutes=STALE_RUN_MINUTES)).isoformat(timespec="seconds")
     with connect() as conn:
         conn.execute("BEGIN IMMEDIATE")

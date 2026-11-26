@@ -20,9 +20,7 @@ def _parts(model):
 
 
 def gradcam(model, image_array: np.ndarray, towards_engaged: bool = True) -> tuple[np.ndarray, float]:
-    """Returns a (224, 224) heatmap in [0, 1] and the logit. The gradient is taken of the
-    logit before the sigmoid, negated for Disengagement so the map shows what pushed the
-    model towards the predicted class."""
+    """Gradient of the logit before the sigmoid, negated for Disengagement so the map shows what pushed the model towards the predicted class."""
     import tensorflow as tf
     rescale, backbone, kernel, bias = _parts(model)
     x = tf.convert_to_tensor(image_array[None], tf.float32)

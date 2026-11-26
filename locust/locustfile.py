@@ -1,8 +1,3 @@
-"""Flood of prediction requests against the deployed API.
-
-Each simulated user sends a labelled test image to /api/predict, waits 0.5 to 1.5 s,
-and now and then checks /api/health, as the dashboard does.
-"""
 import random
 from pathlib import Path
 

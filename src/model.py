@@ -1,4 +1,3 @@
-"""Model creation, training, evaluation and retraining (MobileNetV2 transfer learning)."""
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +29,6 @@ def set_seeds(seed: int = SEED) -> None:
 
 
 def config_id(cfg: dict) -> str:
-    """Short hash of an experiment's settings, used to skip runs that already finished."""
     return hashlib.md5(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:10]
 
 
@@ -40,9 +38,6 @@ def get_backbone(model):
 
 
 def build_model(cfg: dict):
-    """Input: RGB image 224x224 with values 0 to 255.
-    Augmentation (active only during training) -> scaling to [-1, 1] ->
-    frozen MobileNetV2 (ImageNet weights) -> pooling -> dropout -> sigmoid output."""
     import keras
     from keras import layers, regularizers
 
@@ -84,8 +79,7 @@ def compile_model(model, optimizer: str, lr: float) -> None:
 
 
 def unfreeze_top(model, n_layers: int) -> None:
-    """Make the last n backbone layers trainable. BatchNorm layers stay frozen
-    so their running statistics from ImageNet are not disturbed by small batches."""
+    """BatchNorm layers stay frozen so small batches do not disturb their ImageNet statistics."""
     import keras
     backbone = get_backbone(model)
     backbone.trainable = True
@@ -119,7 +113,6 @@ def predict_proba(model, ds) -> np.ndarray:
 
 
 def best_threshold(y_true, proba) -> float:
-    """Threshold with the highest F1 on the validation set (searched from 0.05 to 0.95)."""
     grid = np.round(np.arange(0.05, 0.96, 0.01), 2)
     scores = [f1_score(y_true, (proba >= t).astype(int), zero_division=0) for t in grid]
     return float(grid[int(np.argmax(scores))])
@@ -144,8 +137,7 @@ def run_experiment(cfg: dict, train_df: pd.DataFrame, val_df: pd.DataFrame, data
                    results_csv: str | Path = "outputs/experiments.csv",
                    model_dir: str | Path = "models/experiments",
                    log_root: str | Path = "outputs/logs") -> dict:
-    """Train one experiment. Finished runs with the same settings are skipped;
-    changed settings get a new id and are trained again."""
+    """Runs whose settings already finished are skipped."""
     import keras
 
     cid = config_id(cfg)
@@ -198,7 +190,6 @@ def run_experiment(cfg: dict, train_df: pd.DataFrame, val_df: pd.DataFrame, data
 
 def save_production_model(model_file: str | Path, threshold: float, metrics: dict,
                           version: int = 1, extra: dict | None = None) -> dict:
-    """Copy the chosen model to the fixed production path and write its metadata."""
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Copy then rename, so a container reading the model never sees a half-written file.
     # Metadata is written last: other containers reload when it changes.
@@ -220,15 +211,7 @@ def retrain(new_df: pd.DataFrame, val_df: pd.DataFrame, data_root: str | Path,
             replay_df: pd.DataFrame | None = None, replay_size: int = 1000,
             fine_tune_layers: int = 30, lr: float = 1e-5, epochs: int = 5,
             batch_size: int = 32, min_gain: float = -0.01) -> dict:
-    """Retrain the current production model on newly uploaded images.
-
-    1. Load the saved model as the starting point (no training from scratch).
-    2. Mix the new images with a random sample of earlier training images, so the
-       model does not forget what it learnt before.
-    3. Fine-tune the top backbone layers with a low learning rate.
-    4. Compare old and new model on the same validation set. The new model replaces
-       the old one only if its F1 has not dropped by more than |min_gain|.
-    """
+    """The new model replaces the old one only if its F1 has not dropped by more than |min_gain|."""
     import keras
 
     set_seeds()

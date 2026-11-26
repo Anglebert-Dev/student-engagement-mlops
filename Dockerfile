@@ -13,12 +13,9 @@ COPY src/ src/
 COPY app/ app/
 COPY data/test/ data/test/
 COPY outputs/dataset_summary.json outputs/experiments.csv outputs/
-# Chart.js is served by the app itself, so the dashboard charts work without a CDN
 ADD https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js app/static/chart.umd.min.js
 RUN chmod 644 app/static/chart.umd.min.js
 
-# models/ and storage/ are mounted as volumes so that all containers share
-# the same model files and database, and retraining results survive restarts.
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=4)"

@@ -1,7 +1,3 @@
-"""Web API and dashboard for the student engagement classifier.
-
-Run locally:  uvicorn app.main:app --host 0.0.0.0 --port 8000   (from the project root)
-"""
 from __future__ import annotations
 
 import asyncio
@@ -48,7 +44,7 @@ def load_predictor() -> None:
         from src.prediction import EngagementPredictor
         state["predictor"] = EngagementPredictor()
         state["model_error"] = None
-    except Exception as exc:  # the dashboard shows the reason instead of the app crashing
+    except Exception as exc:
         state["predictor"], state["model_error"] = None, f"{type(exc).__name__}: {exc}"
 
 
@@ -66,7 +62,6 @@ def error(message: str, status: int) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=status)
 
 
-# ---------------------------------------------------------------- status and insights
 async def health(request: Request):
     predictor = state["predictor"]
     if predictor is not None:
@@ -117,7 +112,6 @@ async def stats(request: Request):
     return JSONResponse(data)
 
 
-# ---------------------------------------------------------------- prediction
 async def predict(request: Request):
     form = await request.form(max_files=1, max_part_size=MAX_FILE_BYTES)
     upload = form.get("file")
@@ -165,7 +159,6 @@ async def explain(request: Request):
                          "latency_ms": round((time.perf_counter() - start) * 1000, 1)})
 
 
-# ---------------------------------------------------------------- upload and retraining
 def start_retraining(trigger: str) -> tuple[int | None, str | None]:
     reason = retraining.check_ready()
     if reason:
@@ -236,9 +229,7 @@ async def retrain_status(request: Request):
     return JSONResponse(history[0] if history else {"status": "never run"})
 
 
-# ---------------------------------------------------------------- evaluation in production
 async def evaluate(request: Request):
-    """Score the model currently in production on the held-out labelled images in data/test."""
     from src.model import classification_metrics
     import numpy as np
 
@@ -264,7 +255,6 @@ async def evaluate(request: Request):
     })
 
 
-# ---------------------------------------------------------------- app
 async def index(request: Request):
     return FileResponse(APP_DIR / "static" / "index.html")
 

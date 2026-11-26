@@ -1,5 +1,3 @@
-"""Retraining pipeline used by the API: database uploads -> preprocessing -> fine-tune the
-saved model -> evaluate on held-out images -> promote or keep the old model."""
 from __future__ import annotations
 
 import os
@@ -12,7 +10,7 @@ from . import database as db
 from .preprocessing import CLASS_NAMES
 
 DATA_DIR = Path("data")
-VALIDATION_DIR = DATA_DIR / "test"       # labelled images never used for training
+VALIDATION_DIR = DATA_DIR / "test"
 WORK_DIR = DATA_DIR / "_retrain"
 MIN_NEW_PER_CLASS = int(os.environ.get("MIN_NEW_PER_CLASS", "5"))
 
@@ -26,7 +24,6 @@ def labelled_folder(folder: Path, root: Path) -> pd.DataFrame:
 
 
 def check_ready() -> str | None:
-    """Return a reason why retraining cannot start, or None if it can."""
     counts = db.upload_counts()["by_label"]
     missing = [c for c in CLASS_NAMES if counts.get(c, {}).get("waiting", 0) < MIN_NEW_PER_CLASS]
     if missing:
@@ -38,7 +35,6 @@ def check_ready() -> str | None:
 
 
 def export_uploads(rows, folder: Path) -> pd.DataFrame:
-    """Write stored images to disk so the same tf.data pipeline as the notebook can read them."""
     records = []
     for r in rows:
         path = folder / r["label"] / f"{r['id']}.jpg"
@@ -50,12 +46,6 @@ def export_uploads(rows, folder: Path) -> pd.DataFrame:
 
 
 def run_retraining(run_id: int, epochs: int = 5) -> dict:
-    """Fine-tune the production model on images waiting in the database.
-
-    New images are combined with images from earlier retraining runs (replay) so the
-    model keeps what it learnt before. The model is compared with the previous
-    version on data/test, and replaces it only if F1 does not drop by more than 0.05.
-    """
     from .model import retrain
 
     work = WORK_DIR / f"run_{run_id}"

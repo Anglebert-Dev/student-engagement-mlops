@@ -1,8 +1,4 @@
-"""Build outputs/dataset_summary.json, the data the dashboard charts are drawn from.
-
-Usage (from the project root, with the dataset extracted):
-    python scripts/build_dataset_summary.py data/raw/extracted
-"""
+"""Usage: python scripts/build_dataset_summary.py data/raw/extracted"""
 import json
 import sys
 from pathlib import Path

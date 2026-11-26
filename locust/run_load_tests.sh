@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Runs the same Locust test against 1, 2 and 4 API containers and writes
-# results/summary.md. Run from the project root on the server:
-#     bash locust/run_load_tests.sh
-# Settings can be changed with environment variables, for example:
-#     USERS=100 DURATION=3m bash locust/run_load_tests.sh
 set -euo pipefail
 
 PORT=${APP_PORT:-8095}
