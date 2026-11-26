@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Video demo** | [] |
+| **Video demo** | https://youtu.be/Tf_Lvz8pCtI |
 | **Live app** | http://194.163.187.137:8095 |
 | **Notebook** | [`notebook/student_engagement_mlops.ipynb`](notebook/student_engagement_mlops.ipynb) |
 
